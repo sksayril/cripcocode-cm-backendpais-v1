@@ -12,7 +12,7 @@ const config = {
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
   
   // CORS Configuration
-  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:5173,https://8gl8skhl-3500.inc1.devtunnels.ms',
+  ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://8gl8skhl-3500.inc1.devtunnels.ms',
   CORS_CREDENTIALS: process.env.CORS_CREDENTIALS === 'true' || true,
   
   // Optional: External Services

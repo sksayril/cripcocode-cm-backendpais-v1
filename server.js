@@ -18,6 +18,8 @@ const serverRoutes = require('./routes/server');
 const chatRoutes = require('./routes/chat');
 const employeeChatRoutes = require('./routes/employeeChat');
 const clientChatRoutes = require('./routes/clientChat');
+const superAdminChatRoutes = require('./routes/superAdminChat');
+const paymentRoutes = require('./routes/payment');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
@@ -163,6 +165,8 @@ app.use('/api/server', serverRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/employee-chat', employeeChatRoutes);
 app.use('/api/client-chat', clientChatRoutes);
+app.use('/api/super-admin-chat', superAdminChatRoutes);
+app.use('/api/payment', paymentRoutes);
 
 // 404 handler for undefined routes
 app.use('*', notFoundHandler);
@@ -213,6 +217,11 @@ const startServer = async () => {
       console.log(`📋 Project API: http://localhost:${PORT}/api/project`);
       console.log(`👨‍💼 Employee API: http://localhost:${PORT}/api/employee`);
       console.log(`✅ Task API: http://localhost:${PORT}/api/task`);
+      console.log(`💬 Admin Chat System: http://localhost:${PORT}/api/chat`);
+      console.log(`👨‍💼 Employee Chat: http://localhost:${PORT}/api/employee-chat`);
+      console.log(`👥 Client Chat: http://localhost:${PORT}/api/client-chat`);
+      console.log(`🔐 Super Admin Chat: http://localhost:${PORT}/api/super-admin-chat`);
+      console.log(`💳 Payment API: http://localhost:${PORT}/api/payment`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

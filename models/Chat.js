@@ -33,7 +33,7 @@ const messageSchema = new mongoose.Schema({
     model: {
       type: String,
       required: true,
-      enum: ['Admin']
+      enum: ['Admin', 'Employee', 'Client', 'superAdmin', 'CompanyAdmin']
     },
     name: String,
     role: String
@@ -49,7 +49,7 @@ const messageSchema = new mongoose.Schema({
     model: {
       type: String,
       required: true,
-      enum: ['Admin']
+      enum: ['Admin', 'Employee', 'Client', 'superAdmin', 'CompanyAdmin']
     },
     name: String,
     role: String
@@ -89,7 +89,11 @@ const messageSchema = new mongoose.Schema({
   readBy: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Admin'
+      refPath: 'readBy.userModel'
+    },
+    userModel: {
+      type: String,
+      enum: ['Admin', 'Employee', 'Client', 'superAdmin', 'CompanyAdmin']
     },
     readAt: {
       type: Date,

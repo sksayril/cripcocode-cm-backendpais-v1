@@ -11,16 +11,17 @@ const {
   getChatStats, 
   getAdminUsers,
   debugUser,
+  debugAuth,
   debugListAllAdmins
 } = require('../controllers/chatController');
 
 // Import authentication middleware
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateUnifiedToken } = require('../middleware/unifiedAuth');
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
-router.use(authenticateToken);
+router.use(authenticateUnifiedToken);
 
 // Chat Routes
 router.post('/messages', sendMessage);
@@ -35,6 +36,7 @@ router.get('/stats', getChatStats);
 router.get('/admin-users', getAdminUsers);
 
 // Debug Routes
+router.get('/debug/auth', debugAuth);
 router.get('/debug/user/:userId', debugUser);
 router.get('/debug/admins', debugListAllAdmins);
 

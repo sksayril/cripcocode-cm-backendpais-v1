@@ -475,6 +475,186 @@ const superAdminLogout = async (req, res) => {
   }
 };
 
+// CompanyAdmin Login API (Specific endpoint)
+const companyAdminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validation
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and password are required'
+      });
+    }
+
+    // Find admin by email in Admin collection
+    const user = await Admin.findOne({ email });
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is deactivated'
+      });
+    }
+
+    // Check if user is CompanyAdmin
+    if (user.role !== 'CompanyAdmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. CompanyAdmin role required for this endpoint'
+      });
+    }
+
+    // Check if user has a company assigned
+    if (!user.company) {
+      return res.status(403).json({
+        success: false,
+        message: 'CompanyAdmin must be associated with a company'
+      });
+    }
+
+    // Check password
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        company: user.company,
+        isAdmin: true
+      },
+      config.JWT_SECRET,
+      { expiresIn: config.JWT_EXPIRES_IN }
+    );
+
+    // Send response
+    res.status(200).json({
+      success: true,
+      message: 'CompanyAdmin login successful',
+      data: {
+        user: {
+          id: user._id,
+          fullname: user.fullname,
+          username: user.username,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          company: user.company,
+          department: user.department,
+          adminArea: user.adminArea,
+          createdAt: user.createdAt,
+          isAdmin: true
+        },
+        token,
+        tokenType: 'Bearer',
+        expiresIn: config.JWT_EXPIRES_IN,
+        permissions: {
+          canManageCompanyUsers: true,
+          canSendAnnouncements: true,
+          canSendNotices: true,
+          canAccessCompanyData: true,
+          canManageCompanyProjects: true,
+          canAccessCompanyChat: true,
+          canModifyCompanySettings: true
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('CompanyAdmin login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
+// CompanyAdmin Logout API
+const companyAdminLogout = async (req, res) => {
+  try {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token is required for logout'
+      });
+    }
+
+    // Verify token to get user info
+    const decoded = jwt.verify(token, config.JWT_SECRET);
+    
+    // Check if user is CompanyAdmin
+    if (decoded.role !== 'CompanyAdmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. CompanyAdmin role required for this endpoint'
+      });
+    }
+
+    // Add token to blacklist
+    tokenBlacklist.addToBlacklist(token);
+
+    res.status(200).json({
+      success: true,
+      message: 'CompanyAdmin logout successful',
+      data: {
+        user: {
+          id: decoded.userId,
+          username: decoded.username,
+          email: decoded.email,
+          role: decoded.role,
+          company: decoded.company
+        },
+        message: 'Token has been invalidated. Please login again to get a new token.',
+        logoutTime: new Date().toISOString(),
+        sessionEnded: true
+      }
+    });
+
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token expired'
+      });
+    }
+
+    console.error('CompanyAdmin logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
 // Admin Logout API
 const adminLogout = async (req, res) => {
   try {
@@ -569,8 +749,10 @@ module.exports = {
   login,
   superAdminLogin,
   adminLogin,
+  companyAdminLogin,
   logout,
   superAdminLogout,
   adminLogout,
+  companyAdminLogout,
   getLogoutStatus
 };

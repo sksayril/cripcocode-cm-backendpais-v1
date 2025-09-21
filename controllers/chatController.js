@@ -3,10 +3,12 @@ const ResponseHelper = require('../utils/responseHelper');
 const ChatService = require('../services/chatService');
 const { Message } = require('../models/Chat');
 const Admin = require('../models/Admin');
+const Employee = require('../models/Employee');
+const Client = require('../models/Client');
 
 // Send a message
 const sendMessage = asyncHandler(async (req, res) => {
-  const { senderId, content, type = 'text', attachments = [], recipientId } = req.body;
+  const { senderId, senderModel, content, type = 'text', attachments = [], recipientId, recipientModel } = req.body;
   const { role: userRole } = req.user;
 
   // Validate required fields
@@ -14,24 +16,16 @@ const sendMessage = asyncHandler(async (req, res) => {
     return ResponseHelper.error(res, 'Sender ID, recipient ID, and content are required', 400);
   }
 
-  // Check if sender exists and is active
-  const sender = await Admin.findById(senderId).select('username fullname role isActive');
-  if (!sender) {
-    return ResponseHelper.error(res, 'Sender not found', 404);
+  // Validate sender and recipient models
+  const validSenderModels = ['Admin', 'Employee', 'Client', 'superAdmin', 'CompanyAdmin'];
+  const validRecipientModels = ['Admin', 'Employee', 'Client', 'superAdmin', 'CompanyAdmin'];
+
+  if (senderModel && !validSenderModels.includes(senderModel)) {
+    return ResponseHelper.error(res, `Invalid sender model. Must be one of: ${validSenderModels.join(', ')}`, 400);
   }
 
-  if (!sender.isActive) {
-    return ResponseHelper.error(res, 'Sender account is inactive', 400);
-  }
-
-  // Check if recipient exists and is active
-  const recipient = await Admin.findById(recipientId).select('username fullname role isActive');
-  if (!recipient) {
-    return ResponseHelper.error(res, 'Recipient not found', 404);
-  }
-
-  if (!recipient.isActive) {
-    return ResponseHelper.error(res, 'Recipient account is inactive', 400);
+  if (recipientModel && !validRecipientModels.includes(recipientModel)) {
+    return ResponseHelper.error(res, `Invalid recipient model. Must be one of: ${validRecipientModels.join(', ')}`, 400);
   }
 
   // Only superAdmin, admin, and CompanyAdmin can send messages
@@ -39,13 +33,35 @@ const sendMessage = asyncHandler(async (req, res) => {
     return ResponseHelper.error(res, 'You are not authorized to send messages', 403);
   }
 
-  const message = await ChatService.sendMessage(senderId, recipientId, {
-    content,
-    type,
-    attachments
-  });
+  try {
+    let message;
+    
+    if (senderModel && recipientModel) {
+      // Use explicit models
+      message = await ChatService.sendMessageWithSender(senderId, senderModel, recipientId, recipientModel, {
+        content,
+        type,
+        attachments
+      });
+    } else {
+      // Use legacy method (auto-detect models)
+      message = await ChatService.sendMessage(senderId, recipientId, {
+        content,
+        type,
+        attachments
+      });
+    }
 
-  ResponseHelper.created(res, message, 'Message sent successfully');
+    ResponseHelper.created(res, message, 'Message sent successfully');
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      return ResponseHelper.error(res, error.message, 404);
+    }
+    if (error.message.includes('inactive')) {
+      return ResponseHelper.error(res, error.message, 400);
+    }
+    return ResponseHelper.error(res, `Failed to send message: ${error.message}`, 400);
+  }
 });
 
 // Get conversation between two users
@@ -59,8 +75,15 @@ const getConversation = asyncHandler(async (req, res) => {
     return ResponseHelper.error(res, 'You are not authorized to access conversations', 403);
   }
 
-  // Check if target user exists
-  const targetUser = await Admin.findById(userId).select('username fullname role isActive');
+  // Check if target user exists in any collection
+  let targetUser = await Admin.findById(userId).select('username fullname role isActive');
+  if (!targetUser) {
+    targetUser = await Employee.findById(userId).select('username fullname firstName lastName role isActive');
+  }
+  if (!targetUser) {
+    targetUser = await Client.findById(userId).select('username fullname firstName lastName role isActive');
+  }
+  
   if (!targetUser) {
     return ResponseHelper.error(res, 'User not found', 404);
   }
@@ -198,10 +221,22 @@ const debugUser = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   
   try {
-    const user = await Admin.findById(userId).select('username fullname role isActive');
+    // Try to find user in all collections
+    let user = await Admin.findById(userId).select('username fullname role isActive');
+    let model = 'Admin';
     
     if (!user) {
-      return ResponseHelper.error(res, 'User not found', 404);
+      user = await Employee.findById(userId).select('username fullname firstName lastName role isActive');
+      if (user) model = 'Employee';
+    }
+    
+    if (!user) {
+      user = await Client.findById(userId).select('username fullname firstName lastName role isActive');
+      if (user) model = 'Client';
+    }
+    
+    if (!user) {
+      return ResponseHelper.error(res, 'User not found in any collection', 404);
     }
     
     const currentUser = req.user;
@@ -210,17 +245,43 @@ const debugUser = asyncHandler(async (req, res) => {
       user: {
         id: user._id,
         username: user.username,
-        fullname: user.fullname,
+        fullname: user.fullname || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.username),
         role: user.role,
         isActive: user.isActive,
-        model: 'Admin'
+        model: model
       },
       currentUser: {
         id: currentUser.id,
-        model: 'Admin',
+        model: currentUser.type || 'Admin',
         role: currentUser.role
       }
     }, 'User debug info retrieved successfully');
+  } catch (error) {
+    ResponseHelper.error(res, error.message, 400);
+  }
+});
+
+// Debug endpoint to check current user authentication
+const debugAuth = asyncHandler(async (req, res) => {
+  try {
+    const currentUser = req.user;
+    
+    ResponseHelper.success(res, {
+      currentUser: {
+        id: currentUser.id,
+        username: currentUser.username,
+        email: currentUser.email,
+        role: currentUser.role,
+        type: currentUser.type,
+        isActive: currentUser.isActive,
+        company: currentUser.company
+      },
+      tokenInfo: {
+        userId: currentUser.id,
+        role: currentUser.role,
+        type: currentUser.type
+      }
+    }, 'Authentication debug info retrieved successfully');
   } catch (error) {
     ResponseHelper.error(res, error.message, 400);
   }
@@ -238,5 +299,6 @@ module.exports = {
   getChatStats,
   getAdminUsers,
   debugUser,
+  debugAuth,
   debugListAllAdmins
 };

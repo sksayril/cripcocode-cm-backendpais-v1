@@ -1,6 +1,6 @@
-# Chat System API Documentation
+# Admin Chat System API Documentation
 
-A simple chat system API that allows superAdmin, admin, and CompanyAdmin users to communicate with each other.
+A comprehensive bidirectional chat system API that allows superAdmin, admin, and CompanyAdmin users to communicate with Admin, Employee, and Client users.
 
 ## 🔐 Authentication
 
@@ -12,34 +12,44 @@ Authorization: Bearer <your_jwt_token>
 
 ## 👥 User Roles
 
-- **superAdmin**: Can chat with any admin user, edit/delete any message
-- **admin**: Can chat with superAdmin and other admin users, edit/delete their own messages
-- **CompanyAdmin**: Can chat with superAdmin and other admin users, edit/delete their own messages
+- **superAdmin**: Can chat with any user (Admin, Employee, Client), edit/delete any message
+- **admin**: Can chat with any user (Admin, Employee, Client), edit/delete their own messages
+- **CompanyAdmin**: Can chat with any user (Admin, Employee, Client), edit/delete their own messages
+
+## 📋 Supported Users
+
+- **Admin**: superAdmin, admin, CompanyAdmin
+- **Employee**: All employee roles
+- **Client**: All client types
 
 ## 📋 API Endpoints
 
 ### 1. Send Message
 **POST** `/api/chat/messages`
 
-Send a message to another admin user.
+Send a message to any user (Admin, Employee, or Client).
 
 **Request Body:**
 ```json
 {
   "senderId": "60f7b3b3b3b3b3b3b3b3b3b3",
+  "senderModel": "Admin",
   "content": "Hello, how are you?",
   "type": "text",
   "attachments": [],
-  "recipientId": "60f7b3b3b3b3b3b3b3b3b3b4"
+  "recipientId": "60f7b3b3b3b3b3b3b3b3b3b4",
+  "recipientModel": "Employee"
 }
 ```
 
 **Field Descriptions:**
-- `senderId` (string, required): ID of the admin user sending the message
+- `senderId` (string, required): ID of the user sending the message
+- `senderModel` (string, optional): Model of the sender - "Admin", "Employee", "Client", "superAdmin", "CompanyAdmin" (auto-detected if not provided)
 - `content` (string, required): Message content
 - `type` (string, optional): Message type - "text", "image", "file" (default: "text")
 - `attachments` (array, optional): Array of attachment objects
-- `recipientId` (string, required): ID of the admin user receiving the message
+- `recipientId` (string, required): ID of the user receiving the message
+- `recipientModel` (string, optional): Model of the recipient - "Admin", "Employee", "Client", "superAdmin", "CompanyAdmin" (auto-detected if not provided)
 
 **Response:**
 
@@ -59,9 +69,9 @@ Send a message to another admin user.
     },
     "recipient": {
       "id": "60f7b3b3b3b3b3b3b3b3b3b4",
-      "model": "Admin",
-      "name": "Jane Admin",
-      "role": "admin"
+      "model": "Employee",
+      "name": "Jane Employee",
+      "role": "developer"
     },
     "status": "sent",
     "edited": {
@@ -77,7 +87,7 @@ Send a message to another admin user.
 ### 2. Get Conversation
 **GET** `/api/chat/conversation/:userId?page=1&limit=50`
 
-Get conversation between current user and specified user.
+Get conversation between current user and specified user (Admin, Employee, or Client).
 
 **Path Parameters:**
 - `userId` (string): ID of the user to get conversation with
@@ -363,16 +373,16 @@ Get chat statistics for the current user.
 }
 ```
 
-### 10. Get Admin Users
-**GET** `/api/chat/admin-users`
+### 10. Get Available Users
+**GET** `/api/chat/available-users`
 
-Get list of all admin users for chat (excludes current user).
+Get list of all available users for chat (Admin, Employee, Client - excludes current user).
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Admin users retrieved successfully",
+  "message": "Available users retrieved successfully",
   "data": {
     "admins": [
       {
@@ -380,14 +390,28 @@ Get list of all admin users for chat (excludes current user).
         "username": "jane_admin",
         "fullname": "Jane Admin",
         "role": "admin",
+        "model": "Admin",
         "createdAt": "2023-07-20T09:00:00.000Z"
-      },
+      }
+    ],
+    "employees": [
       {
         "_id": "60f7b3b3b3b3b3b3b3b3b3b4",
-        "username": "bob_admin",
-        "fullname": "Bob Admin",
-        "role": "admin",
+        "username": "john_employee",
+        "fullname": "John Employee",
+        "role": "developer",
+        "model": "Employee",
         "createdAt": "2023-07-20T09:30:00.000Z"
+      }
+    ],
+    "clients": [
+      {
+        "_id": "60f7b3b3b3b3b3b3b3b3b3b5",
+        "username": "client1",
+        "fullname": "Client One",
+        "role": "premium-client",
+        "model": "Client",
+        "createdAt": "2023-07-20T10:00:00.000Z"
       }
     ]
   }
@@ -470,7 +494,10 @@ curl -X POST http://localhost:3500/api/chat/messages \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "recipientId": "60f7b3b3b3b3b3b3b3b3b3b3",
+    "senderId": "60f7b3b3b3b3b3b3b3b3b3b3",
+    "senderModel": "Admin",
+    "recipientId": "60f7b3b3b3b3b3b3b3b3b3b4",
+    "recipientModel": "Employee",
     "content": "Hello, how are you?",
     "type": "text"
   }'
@@ -501,10 +528,16 @@ curl -X DELETE http://localhost:3500/api/chat/messages/60f7b3b3b3b3b3b3b3b3b3b5 
 ## 📝 Notes
 
 - All endpoints require authentication
-- Only superAdmin and admin users can access chat functionality
+- Only superAdmin, admin, and CompanyAdmin users can access chat functionality
 - Super-admin can edit/delete any message
-- Admin users can only edit/delete their own messages
+- Admin and CompanyAdmin users can only edit/delete their own messages
+- Supports bidirectional messaging between Admin, Employee, and Client users
 - Messages are soft-deleted (marked as deleted, not removed from database)
 - All timestamps are in ISO 8601 format
 - Pagination is available for list endpoints
 - Search is case-insensitive
+- User models are auto-detected if not explicitly provided
+
+---
+
+**Built with ❤️ for Admin Communication Excellence**

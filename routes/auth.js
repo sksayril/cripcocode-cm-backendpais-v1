@@ -4,9 +4,11 @@ const {
   login,
   superAdminLogin,
   adminLogin,
+  companyAdminLogin,
   logout,
   superAdminLogout,
   adminLogout,
+  companyAdminLogout,
   getLogoutStatus
 } = require('../controllers/authController');
 
@@ -19,11 +21,13 @@ router.post('/login', login);
 // Role-specific Login Routes
 router.post('/superAdmin/login', superAdminLogin);
 router.post('/admin/login', adminLogin);
+router.post('/companyAdmin/login', companyAdminLogin);
 
 // Logout Routes
 router.post('/logout', logout);
 router.post('/superAdmin/logout', superAdminLogout);
 router.post('/admin/logout', adminLogout);
+router.post('/companyAdmin/logout', companyAdminLogout);
 
 // Utility Routes
 router.get('/logout/status', getLogoutStatus);

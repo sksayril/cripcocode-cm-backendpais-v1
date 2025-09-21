@@ -1,27 +1,72 @@
 const { Message } = require('../models/Chat');
 const Admin = require('../models/Admin');
+const Employee = require('../models/Employee');
+const Client = require('../models/Client');
 
 class ChatService {
-  // Get user information by ID
-  static async getUserInfo(userId) {
+  // Get user information by ID and model
+  static async getUserInfo(userId, userModel = null) {
     try {
-      const user = await Admin.findById(userId).select('username fullname role isActive');
+      let user = null;
+      let model = 'Admin';
+      
+      // If userModel is provided, search in that specific collection
+      if (userModel) {
+        switch (userModel) {
+          case 'Admin':
+          case 'superAdmin':
+          case 'CompanyAdmin':
+            user = await Admin.findById(userId).select('username fullname role isActive');
+            model = 'Admin';
+            break;
+          case 'Employee':
+            user = await Employee.findById(userId).select('username fullname firstName lastName role isActive');
+            model = 'Employee';
+            break;
+          case 'Client':
+            user = await Client.findById(userId).select('username fullname firstName lastName role isActive');
+            model = 'Client';
+            break;
+          default:
+            throw new Error(`Invalid user model: ${userModel}`);
+        }
+      } else {
+        // Try to find user in all collections
+        user = await Admin.findById(userId).select('username fullname role isActive');
+        if (!user) {
+          user = await Employee.findById(userId).select('username fullname firstName lastName role isActive');
+          if (user) model = 'Employee';
+        }
+        if (!user) {
+          user = await Client.findById(userId).select('username fullname firstName lastName role isActive');
+          if (user) model = 'Client';
+        }
+      }
       
       if (!user) {
-        throw new Error(`User with ID ${userId} not found in Admin collection`);
+        throw new Error(`User with ID ${userId} not found`);
       }
       
       if (!user.isActive) {
-        throw new Error(`User account ${user.username} is inactive`);
+        throw new Error(`User account is inactive`);
+      }
+      
+      // Get fullname based on model
+      let fullname = user.fullname;
+      if (!fullname && user.firstName && user.lastName) {
+        fullname = `${user.firstName} ${user.lastName}`;
+      }
+      if (!fullname) {
+        fullname = user.username;
       }
       
       return {
         id: user._id,
         username: user.username,
-        fullname: user.fullname,
+        fullname: fullname,
         role: user.role,
         isActive: user.isActive,
-        model: 'Admin'
+        model: model
       };
     } catch (error) {
       if (error.message.includes('not found')) {
@@ -31,7 +76,43 @@ class ChatService {
     }
   }
 
-  // Send a message
+  // Send a message with explicit sender and recipient models
+  static async sendMessageWithSender(senderId, senderModel, recipientId, recipientModel, messageData) {
+    // Prevent self-messaging (optional - remove this check if you want to allow self-messaging)
+    if (senderId.toString() === recipientId.toString()) {
+      throw new Error('Cannot send message to yourself');
+    }
+    
+    // Get sender and recipient info
+    const senderInfo = await this.getUserInfo(senderId, senderModel);
+    const recipientInfo = await this.getUserInfo(recipientId, recipientModel);
+    
+    // Create message
+    const message = new Message({
+      content: messageData.content,
+      type: messageData.type || 'text',
+      attachments: messageData.attachments || [],
+      sender: {
+        id: senderInfo.id,
+        model: senderInfo.model,
+        name: senderInfo.fullname || senderInfo.username,
+        role: senderInfo.role
+      },
+      recipient: {
+        id: recipientInfo.id,
+        model: recipientInfo.model,
+        name: recipientInfo.fullname || recipientInfo.username,
+        role: recipientInfo.role
+      },
+      replyTo: messageData.replyTo || null
+    });
+    
+    await message.save();
+    
+    return message;
+  }
+
+  // Send a message (legacy method for backward compatibility)
   static async sendMessage(senderId, recipientId, messageData) {
     // Prevent self-messaging (optional - remove this check if you want to allow self-messaging)
     if (senderId.toString() === recipientId.toString()) {
@@ -49,13 +130,13 @@ class ChatService {
       attachments: messageData.attachments || [],
       sender: {
         id: senderInfo.id,
-        model: 'Admin',
+        model: senderInfo.model,
         name: senderInfo.fullname || senderInfo.username,
         role: senderInfo.role
       },
       recipient: {
         id: recipientInfo.id,
-        model: 'Admin',
+        model: recipientInfo.model,
         name: recipientInfo.fullname || recipientInfo.username,
         role: recipientInfo.role
       },
@@ -63,13 +144,6 @@ class ChatService {
     });
     
     await message.save();
-    
-    // Populate the message
-    await message.populate([
-      { path: 'sender.id', select: 'username fullname role' },
-      { path: 'recipient.id', select: 'username fullname role' },
-      { path: 'replyTo' }
-    ]);
     
     return message;
   }

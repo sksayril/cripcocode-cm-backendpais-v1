@@ -246,9 +246,51 @@ const commonValidation = {
   ]
 };
 
+// SuperAdmin validation middleware
+const validateSuperAdmin = (req, res, next) => {
+  // Check if user is authenticated and has SuperAdmin role
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Access denied. No token provided'
+    });
+  }
+
+  if (req.user.role !== 'superAdmin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. SuperAdmin role required'
+    });
+  }
+
+  next();
+};
+
+// Admin validation middleware
+const validateAdmin = (req, res, next) => {
+  // Check if user is authenticated and has Admin role
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Access denied. No token provided'
+    });
+  }
+
+  if (req.user.role !== 'admin' && req.user.role !== 'superAdmin' && req.user.role !== 'companyAdmin') {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Admin or CompanyAdmin role required'
+    });
+  }
+
+  next();
+};
+
 module.exports = {
   adminValidation,
   authValidation,
   commonValidation,
-  handleValidationErrors
+  handleValidationErrors,
+  validateSuperAdmin,
+  validateAdmin
 };

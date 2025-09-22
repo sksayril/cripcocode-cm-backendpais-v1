@@ -127,7 +127,7 @@ const companySchema = new mongoose.Schema({
 });
 
 // Indexes for better performance
-companySchema.index({ email: 1 });
+// Note: email index is automatically created by unique: true
 companySchema.index({ name: 1 });
 companySchema.index({ isActive: 1 });
 companySchema.index({ createdBy: 1 });

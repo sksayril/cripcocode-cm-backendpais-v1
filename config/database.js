@@ -3,8 +3,6 @@ const config = require('../env');
 
 // MongoDB connection options - updated for newer versions
 const mongoOptions = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
   maxPoolSize: 10,
   serverSelectionTimeoutMS: 5000,
   socketTimeoutMS: 45000,

@@ -1,3 +1,6 @@
+// Load environment variables from .env file
+require('dotenv').config();
+
 // Environment Configuration
 const config = {
   // Server Configuration
@@ -14,6 +17,10 @@ const config = {
   // CORS Configuration
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:5173,https://8gl8skhl-3500.inc1.devtunnels.ms',
   CORS_CREDENTIALS: process.env.CORS_CREDENTIALS === 'true' || true,
+  
+  // Razorpay Payment Gateway Configuration
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID || 'rzp_test_1234567890',
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET || 'test_secret_1234567890',
   
   // Optional: External Services
   // SMTP_EMAIL: process.env.SMTP_EMAIL || '',

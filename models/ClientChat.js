@@ -139,8 +139,6 @@ const clientMessageSchema = new mongoose.Schema({
 
 // Indexes for better performance
 clientMessageSchema.index({ 'sender.id': 1, 'recipient.id': 1 });
-clientMessageSchema.index({ 'recipient.id': 1, 'sender.id': 1 });
-clientMessageSchema.index({ 'recipient.id': 1, 'sender.id': 1 });
 clientMessageSchema.index({ content: 'text' });
 clientMessageSchema.index({ createdAt: -1 });
 clientMessageSchema.index({ 'company': 1 });

@@ -6,9 +6,12 @@ const Transaction = require('../models/Transaction');
 class PaymentService {
   constructor() {
     // Validate Razorpay credentials
-    if (!config.RAZORPAY_KEY_ID || !config.RAZORPAY_KEY_SECRET) {
-      console.warn('⚠️  Razorpay credentials not found. Payment functionality will be limited.');
+    if (!config.RAZORPAY_KEY_ID || !config.RAZORPAY_KEY_SECRET || 
+        config.RAZORPAY_KEY_ID === 'rzp_test_1234567890' || 
+        config.RAZORPAY_KEY_SECRET === 'test_secret_1234567890') {
+      console.warn('⚠️  Using mock Razorpay for development. Set real credentials for production.');
       this.razorpay = null;
+      this.isMockMode = true;
       return;
     }
 
@@ -18,11 +21,61 @@ class PaymentService {
         key_id: config.RAZORPAY_KEY_ID,
         key_secret: config.RAZORPAY_KEY_SECRET
       });
+      this.isMockMode = false;
       console.log('✅ Razorpay initialized successfully');
     } catch (error) {
       console.error('❌ Failed to initialize Razorpay:', error.message);
       this.razorpay = null;
+      this.isMockMode = true;
     }
+  }
+
+  /**
+   * Create mock order for development
+   * @param {object} orderData - Order creation data
+   * @returns {Promise<object>} - Mock order response
+   */
+  async createMockOrder(orderData) {
+    const {
+      amount,
+      currency = 'INR',
+      receipt,
+      notes = {},
+      customer = {}
+    } = orderData;
+
+    // Validate amount
+    if (!amount || amount < 100) {
+      throw new Error('Amount must be at least ₹1 (100 paise)');
+    }
+
+    // Calculate charges
+    const charges = this.calculateGatewayCharges(amount);
+
+    // Generate mock order
+    const mockOrder = {
+      id: `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      amount: amount,
+      currency: currency,
+      receipt: receipt || `receipt_${Date.now()}`,
+      status: 'created',
+      created_at: Math.floor(Date.now() / 1000),
+      notes: {
+        ...notes,
+        customer_name: customer.name,
+        customer_email: customer.email,
+        customer_contact: customer.contact,
+        gatewayCharges: charges.totalGatewayCharges,
+        netAmount: charges.netAmount
+      }
+    };
+
+    return {
+      success: true,
+      order: mockOrder,
+      charges: charges,
+      mock: true
+    };
   }
 
   /**
@@ -63,8 +116,13 @@ class PaymentService {
   async createOrder(orderData) {
     try {
       // Check if Razorpay is initialized
-      if (!this.razorpay) {
+      if (!this.razorpay && !this.isMockMode) {
         throw new Error('Razorpay is not initialized. Please check your environment variables.');
+      }
+
+      // Use mock mode for development
+      if (this.isMockMode) {
+        return this.createMockOrder(orderData);
       }
 
       const {
@@ -122,7 +180,15 @@ class PaymentService {
       };
     } catch (error) {
       console.error('Error creating Razorpay order:', error);
-      throw new Error(`Failed to create order: ${error.message}`);
+      
+      // Handle specific Razorpay errors
+      if (error.error) {
+        throw new Error(`Failed to create order: ${error.error.description || error.error.message || 'Razorpay API error'}`);
+      } else if (error.message) {
+        throw new Error(`Failed to create order: ${error.message}`);
+      } else {
+        throw new Error('Failed to create order: Unknown error occurred');
+      }
     }
   }
 

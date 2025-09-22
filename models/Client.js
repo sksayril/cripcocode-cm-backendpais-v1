@@ -203,8 +203,8 @@ const clientSchema = new mongoose.Schema({
 });
 
 // Indexes for better query performance
+// Note: email index is automatically created by unique: true
 clientSchema.index({ company: 1, status: 1 });
-clientSchema.index({ email: 1 });
 clientSchema.index({ phone: 1 });
 clientSchema.index({ status: 1, isActive: 1 });
 clientSchema.index({ createdBy: 1 });

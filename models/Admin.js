@@ -144,9 +144,7 @@ const adminSchema = new mongoose.Schema({
 });
 
 // Indexes for better performance
-adminSchema.index({ email: 1 });
-adminSchema.index({ username: 1 });
-adminSchema.index({ phone: 1 });
+// Note: email, username, and phone indexes are automatically created by unique: true
 adminSchema.index({ company: 1 });
 adminSchema.index({ role: 1 });
 adminSchema.index({ isActive: 1 });

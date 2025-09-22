@@ -20,6 +20,8 @@ const employeeChatRoutes = require('./routes/employeeChat');
 const clientChatRoutes = require('./routes/clientChat');
 const superAdminChatRoutes = require('./routes/superAdminChat');
 const paymentRoutes = require('./routes/payment');
+const financeRoutes = require('./routes/finance');
+const adminFinanceRoutes = require('./routes/adminFinance');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
@@ -167,6 +169,8 @@ app.use('/api/employee-chat', employeeChatRoutes);
 app.use('/api/client-chat', clientChatRoutes);
 app.use('/api/super-admin-chat', superAdminChatRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/admin/finance', financeRoutes);
+app.use('/api/admin/finance', adminFinanceRoutes);
 
 // 404 handler for undefined routes
 app.use('*', notFoundHandler);

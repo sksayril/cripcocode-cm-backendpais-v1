@@ -5,15 +5,13 @@ const transactionSchema = new mongoose.Schema({
   orderId: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   
   paymentId: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   
   // Payment amounts
@@ -164,8 +162,7 @@ transactionSchema.virtual('refundableAmount').get(function() {
 });
 
 // Indexes for better performance
-transactionSchema.index({ orderId: 1 });
-transactionSchema.index({ paymentId: 1 });
+// Note: orderId and paymentId indexes are automatically created by unique: true
 transactionSchema.index({ status: 1 });
 transactionSchema.index({ createdAt: -1 });
 transactionSchema.index({ amount: 1 });

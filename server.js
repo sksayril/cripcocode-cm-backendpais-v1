@@ -22,6 +22,7 @@ const superAdminChatRoutes = require('./routes/superAdminChat');
 const paymentRoutes = require('./routes/payment');
 const financeRoutes = require('./routes/finance');
 const adminFinanceRoutes = require('./routes/adminFinance');
+const accountingRoutes = require('./routes/accounting');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
@@ -171,6 +172,7 @@ app.use('/api/super-admin-chat', superAdminChatRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/admin/finance', financeRoutes);
 app.use('/api/admin/finance', adminFinanceRoutes);
+app.use('/api/admin/accounting', accountingRoutes);
 
 // 404 handler for undefined routes
 app.use('*', notFoundHandler);

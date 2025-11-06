@@ -1,147 +1,116 @@
 const mongoose = require('mongoose');
+const mongoosePaginate = require('mongoose-paginate-v2');
 
 const transactionSchema = new mongoose.Schema({
-  // Razorpay order details
-  orderId: {
-    type: String,
+  fromAccount: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Ledger',
     required: true,
-    unique: true
+    index: true
   },
-  
-  paymentId: {
-    type: String,
+  toAccount: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Ledger',
     required: true,
-    unique: true
+    index: true
   },
-  
-  // Payment amounts
   amount: {
     type: Number,
     required: true,
     min: 0
   },
-  
-  currency: {
+  date: {
+    type: Date,
+    required: true,
+    index: true,
+    default: Date.now
+  },
+  description: {
     type: String,
-    default: 'INR',
-    enum: ['INR', 'USD', 'EUR']
-  },
-  
-  // Gateway charges calculation
-  gatewayCharges: {
-    type: Number,
     required: true,
-    min: 0
+    trim: true,
+    maxlength: 500
   },
-  
-  netAmount: {
-    type: Number,
-    required: true,
-    min: 0
+  reference: {
+    type: String,
+    trim: true,
+    maxlength: 100
   },
-  
-  // Transaction status
+  transactionType: {
+    type: String,
+    enum: ['transfer', 'payment', 'receipt', 'adjustment', 'opening_balance'],
+    default: 'transfer'
+  },
   status: {
     type: String,
-    required: true,
-    enum: ['pending', 'captured', 'failed', 'refunded', 'partially_refunded'],
-    default: 'pending'
+    enum: ['pending', 'completed', 'cancelled', 'reversed'],
+    default: 'completed'
   },
-  
-  // Razorpay response data
-  razorpayOrderId: {
+  currency: {
     type: String,
-    required: true
+    default: 'USD',
+    maxlength: 3
   },
-  
-  razorpayPaymentId: {
-    type: String,
-    required: true
+  exchangeRate: {
+    type: Number,
+    default: 1
   },
-  
-  razorpaySignature: {
-    type: String,
-    required: true
-  },
-  
-  // Additional payment details
-  method: {
-    type: String,
-    default: 'card'
-  },
-  
-  bank: {
-    type: String,
-    default: null
-  },
-  
-  wallet: {
-    type: String,
-    default: null
-  },
-  
-  vpa: {
-    type: String,
-    default: null
-  },
-  
-  // Refund information
-  refunds: [{
-    refundId: {
-      type: String,
-      required: true
-    },
-    amount: {
-      type: Number,
-      required: true,
-      min: 0
-    },
-    status: {
-      type: String,
-      enum: ['processed', 'pending', 'failed'],
-      default: 'pending'
-    },
-    notes: String,
-    refundedAt: {
+  attachments: [{
+    filename: String,
+    url: String,
+    uploadedAt: {
       type: Date,
       default: Date.now
     }
   }],
-  
-  // Customer information
-  customer: {
-    name: String,
-    email: String,
-    contact: String
-  },
-  
-  // Order description
-  description: {
+  tags: [{
     type: String,
-    default: 'CRM Payment'
+    trim: true
+  }],
+  company: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true,
+    index: true
   },
-  
-  // Notes
-  notes: {
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    required: true
+  },
+  updatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin'
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin'
+  },
+  approvedAt: {
+    type: Date
+  },
+  reversedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin'
+  },
+  reversedAt: {
+    type: Date
+  },
+  reversalReason: {
     type: String,
-    default: null
+    trim: true
   },
-  
-  // Timestamps
-  createdAt: {
-    type: Date,
-    default: Date.now
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true
   },
-  
-  updatedAt: {
-    type: Date,
-    default: Date.now
+  deletedAt: {
+    type: Date
   },
-  
-  // Payment captured timestamp
-  capturedAt: {
-    type: Date,
-    default: null
+  deletedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin'
   }
 }, {
   timestamps: true,
@@ -149,84 +118,186 @@ const transactionSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Virtual for total refunded amount
-transactionSchema.virtual('totalRefunded').get(function() {
-  return this.refunds.reduce((total, refund) => {
-    return total + (refund.status === 'processed' ? refund.amount : 0);
-  }, 0);
-});
-
-// Virtual for refundable amount
-transactionSchema.virtual('refundableAmount').get(function() {
-  return this.netAmount - this.totalRefunded;
-});
-
 // Indexes for better performance
-// Note: orderId and paymentId indexes are automatically created by unique: true
-transactionSchema.index({ status: 1 });
-transactionSchema.index({ createdAt: -1 });
-transactionSchema.index({ amount: 1 });
+transactionSchema.index({ company: 1, date: -1 });
+transactionSchema.index({ company: 1, status: 1, date: -1 });
+transactionSchema.index({ fromAccount: 1, date: -1 });
+transactionSchema.index({ toAccount: 1, date: -1 });
+transactionSchema.index({ createdBy: 1, date: -1 });
 
-// Pre-save middleware to update updatedAt
+// Virtual for formatted amount
+transactionSchema.virtual('formattedAmount').get(function() {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: this.currency || 'USD'
+  }).format(this.amount);
+});
+
+// Virtual for status display
+transactionSchema.virtual('statusDisplay').get(function() {
+  const statusMap = {
+    pending: 'Pending',
+    completed: 'Completed',
+    cancelled: 'Cancelled',
+    reversed: 'Reversed'
+  };
+  return statusMap[this.status] || this.status;
+});
+
+// Virtual for transaction type display
+transactionSchema.virtual('transactionTypeDisplay').get(function() {
+  const typeMap = {
+    transfer: 'Transfer',
+    payment: 'Payment',
+    receipt: 'Receipt',
+    adjustment: 'Adjustment',
+    opening_balance: 'Opening Balance'
+  };
+  return typeMap[this.transactionType] || this.transactionType;
+});
+
+// Pre-save middleware
 transactionSchema.pre('save', function(next) {
-  this.updatedAt = new Date();
+  // Set updatedBy if not already set
+  if (this.isModified() && !this.isNew) {
+    this.updatedAt = new Date();
+  }
+  
+  // Set approvedAt when status changes to completed
+  if (this.isModified('status') && this.status === 'completed') {
+    this.approvedAt = new Date();
+  }
+  
   next();
 });
 
-// Static method to get transaction statistics
-transactionSchema.statics.getStatistics = async function() {
-  const stats = await this.aggregate([
+// Post-save middleware to update account balances
+transactionSchema.post('save', async function() {
+  if (this.status === 'completed' && !this.isDeleted) {
+    const Ledger = mongoose.model('Ledger');
+    
+    try {
+      // Update from account (debit)
+      await Ledger.updateBalance(this.fromAccount, this.amount, 'subtract');
+      
+      // Update to account (credit)
+      await Ledger.updateBalance(this.toAccount, this.amount, 'add');
+    } catch (error) {
+      console.error('Error updating account balances:', error);
+    }
+  }
+});
+
+// Static methods
+transactionSchema.statics.getByDateRange = async function(companyId, startDate, endDate, page = 1, limit = 10) {
+  const query = {
+    company: companyId,
+    isDeleted: false,
+    date: {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate)
+    }
+  };
+  
+  const options = {
+    page: parseInt(page),
+    limit: parseInt(limit),
+    sort: { date: -1 },
+    populate: [
+      { path: 'fromAccount', select: 'name code type' },
+      { path: 'toAccount', select: 'name code type' },
+      { path: 'createdBy', select: 'username fullname' },
+      { path: 'approvedBy', select: 'username fullname' }
+    ]
+  };
+  
+  return await this.paginate(query, options);
+};
+
+transactionSchema.statics.getByAccount = async function(companyId, accountId, page = 1, limit = 10) {
+  const query = {
+    company: companyId,
+    isDeleted: false,
+    $or: [
+      { fromAccount: accountId },
+      { toAccount: accountId }
+    ]
+  };
+  
+  const options = {
+    page: parseInt(page),
+    limit: parseInt(limit),
+    sort: { date: -1 },
+    populate: [
+      { path: 'fromAccount', select: 'name code type' },
+      { path: 'toAccount', select: 'name code type' },
+      { path: 'createdBy', select: 'username fullname' }
+    ]
+  };
+  
+  return await this.paginate(query, options);
+};
+
+transactionSchema.statics.getTransactionSummary = async function(companyId, startDate, endDate) {
+  const query = {
+    company: companyId,
+    isDeleted: false,
+    status: 'completed',
+    date: {
+      $gte: new Date(startDate),
+      $lte: new Date(endDate)
+    }
+  };
+  
+  const result = await this.aggregate([
+    { $match: query },
     {
       $group: {
         _id: null,
         totalTransactions: { $sum: 1 },
         totalAmount: { $sum: '$amount' },
-        totalGatewayCharges: { $sum: '$gatewayCharges' },
-        totalNetAmount: { $sum: '$netAmount' },
-        totalRefunded: { $sum: '$totalRefunded' },
-        capturedTransactions: {
-          $sum: { $cond: [{ $eq: ['$status', 'captured'] }, 1, 0] }
-        },
-        failedTransactions: {
-          $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] }
-        },
-        pendingTransactions: {
-          $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
-        }
+        averageAmount: { $avg: '$amount' }
       }
     }
   ]);
   
-  return stats[0] || {
+  return result.length > 0 ? result[0] : {
     totalTransactions: 0,
     totalAmount: 0,
-    totalGatewayCharges: 0,
-    totalNetAmount: 0,
-    totalRefunded: 0,
-    capturedTransactions: 0,
-    failedTransactions: 0,
-    pendingTransactions: 0
+    averageAmount: 0
   };
 };
 
-// Static method to get transactions by date range
-transactionSchema.statics.getTransactionsByDateRange = function(startDate, endDate, page = 1, limit = 10) {
-  const query = {};
-  
-  if (startDate && endDate) {
-    query.createdAt = {
-      $gte: new Date(startDate),
-      $lte: new Date(endDate)
-    };
-  }
-  
-  return this.find(query)
-    .sort({ createdAt: -1 })
-    .limit(limit * 1)
-    .skip((page - 1) * limit)
-    .select('-__v');
+// Instance methods
+transactionSchema.methods.complete = function(adminId) {
+  this.status = 'completed';
+  this.approvedBy = adminId;
+  this.approvedAt = new Date();
+  return this.save();
 };
 
-const Transaction = mongoose.model('Transaction', transactionSchema);
+transactionSchema.methods.cancel = function(adminId, reason) {
+  this.status = 'cancelled';
+  this.updatedBy = adminId;
+  return this.save();
+};
 
-module.exports = Transaction;
+transactionSchema.methods.reverse = function(adminId, reason) {
+  this.status = 'reversed';
+  this.reversedBy = adminId;
+  this.reversedAt = new Date();
+  this.reversalReason = reason;
+  return this.save();
+};
+
+transactionSchema.methods.softDelete = function(adminId) {
+  this.isDeleted = true;
+  this.deletedAt = new Date();
+  this.deletedBy = adminId;
+  return this.save();
+};
+
+// Add pagination plugin
+transactionSchema.plugin(mongoosePaginate);
+
+module.exports = mongoose.model('Transaction', transactionSchema);

@@ -341,14 +341,17 @@ GET /api/client/list?page=1&limit=20&status=active&industry=Technology
 ### 6. Get Client by ID (Admin Required)
 **GET** `/:id`
 
-Retrieves detailed information about a specific client.
+Retrieves detailed information about a specific client, including comprehensive company assignment details.
 
 **Headers:**
 ```
 Authorization: Bearer <admin_jwt_token>
 ```
 
-**Response (200):**
+**URL Parameters:**
+- `id` (required): The client ID
+
+**Response (200) - Client Assigned to Company:**
 ```json
 {
   "success": true,
@@ -364,15 +367,87 @@ Authorization: Bearer <admin_jwt_token>
       "industry": "Technology",
       "businessType": "SME",
       "status": "active",
+      "isActive": true,
       "totalProjects": 3,
       "activeProjects": 2,
       "completedProjects": 1,
       "totalRevenue": 15000,
+      "password": "originalPlainTextPassword123",
+      "originalPassword": "originalPlainTextPassword123",
+      "hashedPassword": "$2b$12$hashedPasswordStringHere...",
+      "passwordNote": null,
       "company": {
         "_id": "company_id_here",
         "name": "Tech Corp",
+        "email": "contact@techcorp.com",
+        "phone": "+1-555-999-8888",
         "status": "active"
       },
+      "companyAssignment": {
+        "isAssigned": true,
+        "assigned": true,
+        "assignmentStatus": "assigned",
+        "message": "Client is assigned to a company",
+        "company": {
+          "_id": "company_id_here",
+          "name": "Tech Corp",
+          "email": "contact@techcorp.com",
+          "phone": "+1-555-999-8888",
+          "description": "Leading technology solutions provider",
+          "industry": "Technology",
+          "size": "large",
+          "website": "https://techcorp.com",
+          "address": {
+            "street": "123 Tech Street",
+            "city": "San Francisco",
+            "state": "CA",
+            "country": "USA",
+            "zipCode": "94105"
+          },
+          "fullAddress": "123 Tech Street, San Francisco, CA, USA, 94105",
+          "isActive": true,
+          "status": "active",
+          "subscriptionPlan": "premium",
+          "subscriptionExpiry": "2024-12-31T23:59:59.000Z",
+          "stats": {
+            "totalAdmins": 5,
+            "totalUsers": 25,
+            "totalProjects": 50
+          },
+          "createdAt": "2024-01-01T00:00:00.000Z",
+          "updatedAt": "2024-01-15T10:30:00.000Z"
+        },
+        "assignedBy": {
+          "_id": "admin_id_here",
+          "firstName": "Admin",
+          "lastName": "User",
+          "email": "admin@example.com"
+        },
+        "assignedAt": "2024-01-15T10:30:00.000Z",
+        "assignmentDetails": {
+          "assignedBy": {
+            "_id": "admin_id_here",
+            "firstName": "Admin",
+            "lastName": "User",
+            "email": "admin@example.com"
+          },
+          "assignedAt": "2024-01-15T10:30:00.000Z",
+          "assignmentDate": "2024-01-15T10:30:00.000Z"
+        }
+      },
+      "createdBy": {
+        "_id": "admin_id_here",
+        "firstName": "Admin",
+        "lastName": "User",
+        "email": "admin@example.com"
+      },
+      "assignedBy": {
+        "_id": "admin_id_here",
+        "firstName": "Admin",
+        "lastName": "User",
+        "email": "admin@example.com"
+      },
+      "assignedAt": "2024-01-15T10:30:00.000Z",
       "notes": [
         {
           "content": "Client assigned to company: Tech Corp. High potential for long-term partnership.",
@@ -383,11 +458,87 @@ Authorization: Bearer <admin_jwt_token>
           },
           "createdAt": "2024-01-15T10:30:00.000Z"
         }
-      ]
+      ],
+      "createdAt": "2024-01-10T08:00:00.000Z",
+      "updatedAt": "2024-01-15T10:30:00.000Z"
     }
   }
 }
 ```
+
+**Response (200) - Client Not Assigned to Company:**
+```json
+{
+  "success": true,
+  "message": "Client retrieved successfully",
+  "data": {
+    "client": {
+      "_id": "client_id_here",
+      "firstName": "Jane",
+      "lastName": "Smith",
+      "email": "jane.smith@example.com",
+      "phone": "+1-555-987-6543",
+      "companyName": "Startup Inc",
+      "industry": "Technology",
+      "businessType": "Startup",
+      "status": "pending",
+      "isActive": false,
+      "totalProjects": 0,
+      "activeProjects": 0,
+      "completedProjects": 0,
+      "totalRevenue": 0,
+      "password": null,
+      "originalPassword": null,
+      "hashedPassword": "$2b$12$hashedPasswordStringHere...",
+      "passwordNote": "Password not available. This client was created before password storage was implemented. Update the password to store it.",
+      "company": null,
+      "companyAssignment": {
+        "isAssigned": false,
+        "assigned": false,
+        "assignmentStatus": "not_assigned",
+        "message": "Client is not assigned to any company. Please assign to a company to activate the account.",
+        "company": null,
+        "assignedBy": null,
+        "assignedAt": null,
+        "assignmentDetails": null
+      },
+      "createdBy": {
+        "_id": "admin_id_here",
+        "firstName": "Admin",
+        "lastName": "User",
+        "email": "admin@example.com"
+      },
+      "assignedBy": null,
+      "assignedAt": null,
+      "notes": [],
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:00.000Z"
+    }
+  }
+}
+```
+
+**Password Fields:**
+- `password` (string|null): The original plain text password (if available)
+- `originalPassword` (string|null): Alias for password field
+- `hashedPassword` (string): The hashed/bcrypt password stored in the database
+- `passwordNote` (string|null): Note about password availability (null if password is available, message if not)
+
+**Company Assignment Object Fields:**
+- `isAssigned` (boolean): Whether the client is assigned to a company
+- `assigned` (boolean): Alias for isAssigned
+- `assignmentStatus` (string): Either "assigned" or "not_assigned"
+- `message` (string): Human-readable message about assignment status
+- `company` (object|null): Full company details if assigned, null otherwise
+  - Includes: _id, name, email, phone, description, industry, size, website, address, fullAddress, isActive, status, subscriptionPlan, subscriptionExpiry, stats, createdAt, updatedAt
+- `assignedBy` (object|null): Admin who assigned the client
+- `assignedAt` (date|null): When the client was assigned
+- `assignmentDetails` (object|null): Detailed assignment information including assignedBy and assignedAt
+
+**Error Responses:**
+- `403`: Access denied - Client belongs to different company (for non-superAdmin users)
+- `404`: Client not found
+- `500`: Internal server error
 
 ### 7. Update Client (Admin Required)
 **PUT** `/:id` or **POST** `/:id/update`
@@ -470,7 +621,51 @@ Authorization: Bearer <admin_jwt_token>
 }
 ```
 
-### 10. Assign Client to Company (Super Admin Only)
+### 10. Activate Client (Super Admin Only)
+**PUT** `/:id/activate` or **POST** `/:id/activate`
+
+Activates a client by setting their status to active. This endpoint is exclusively available to superAdmin users and allows activation of any client regardless of company assignment.
+
+**Headers:**
+```
+Authorization: Bearer <superAdmin_jwt_token>
+```
+
+**URL Parameters:**
+- `id` (required): The client ID to activate
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "message": "Client activated successfully",
+  "data": {
+    "client": {
+      "id": "client_id_here",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "status": "active",
+      "isActive": true,
+      "reactivatedAt": "2024-01-15T10:30:00.000Z"
+    }
+  }
+}
+```
+
+**Error Responses:**
+- `403`: Access denied - Only superAdmin can activate clients
+- `404`: Client not found
+- `500`: Internal server error
+
+**Notes:**
+- This endpoint is restricted to superAdmin role only
+- Activates the client regardless of current status
+- Clears any deactivation tracking fields
+- Updates company statistics if the client is assigned to a company
+- Works with any client ID, regardless of company assignment
+
+### 11. Assign Client to Company (Super Admin Only)
 **POST** `/:id/assign-company`
 
 Assigns a client to a specific company.
@@ -505,7 +700,7 @@ Authorization: Bearer <admin_jwt_token>
 }
 ```
 
-### 11. Get Client Statistics (Admin Required)
+### 12. Get Client Statistics (Admin Required)
 **GET** `/stats/overview`
 
 Retrieves comprehensive client statistics and analytics.
@@ -558,7 +753,7 @@ Authorization: Bearer <admin_jwt_token>
 }
 ```
 
-### 12. Get Client Projects (Admin Required)
+### 13. Get Client Projects (Admin Required)
 **GET** `/:id/projects`
 
 Retrieves all projects associated with a specific client.
@@ -634,6 +829,7 @@ Authorization: Bearer <admin_jwt_token>
 | `/:id/update` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `/:id/delete` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `/:id/reactivate` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `/:id/activate` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `/:id/assign-company` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 | `/stats/overview` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `/:id/projects` | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
@@ -696,6 +892,27 @@ curl -X POST http://localhost:5000/api/client/create \
   }'
 ```
 
+#### Get Client by ID (Admin)
+```bash
+curl -X GET http://localhost:3500/api/client/691029dcf3abe8379047ea51 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <admin_jwt_token>"
+```
+
+#### Activate Client (Super Admin)
+```bash
+curl -X PUT http://localhost:5000/api/client/client_id_here/activate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <superAdmin_jwt_token>"
+```
+
+Or using POST method:
+```bash
+curl -X POST http://localhost:5000/api/client/client_id_here/activate \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <superAdmin_jwt_token>"
+```
+
 ### JavaScript Examples
 
 #### Client Signup
@@ -733,10 +950,66 @@ const data = await response.json();
 console.log(data);
 ```
 
+#### Get Client by ID (Admin)
+```javascript
+const clientId = '691029dcf3abe8379047ea51';
+const response = await fetch(`http://localhost:3500/api/client/${clientId}`, {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer <admin_jwt_token>'
+  }
+});
+
+const data = await response.json();
+console.log(data);
+
+// Access client information
+if (data.data && data.data.client) {
+  const client = data.data.client;
+  
+  // Access password information
+  console.log('Original Password:', client.password || client.originalPassword);
+  console.log('Password Available:', !!(client.password || client.originalPassword));
+  if (client.passwordNote) {
+    console.log('Password Note:', client.passwordNote);
+  }
+  
+  // Access company assignment information
+  console.log('Company Assignment Status:', client.companyAssignment.assignmentStatus);
+  console.log('Is Assigned:', client.companyAssignment.isAssigned);
+  
+  if (client.companyAssignment.isAssigned) {
+    console.log('Company Details:', client.companyAssignment.company);
+    console.log('Assigned By:', client.companyAssignment.assignedBy);
+    console.log('Assigned At:', client.companyAssignment.assignedAt);
+  } else {
+    console.log('Client is not assigned to any company');
+  }
+}
+```
+
+#### Activate Client (Super Admin)
+```javascript
+const clientId = 'client_id_here';
+const response = await fetch(`http://localhost:5000/api/client/${clientId}/activate`, {
+  method: 'PUT',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer <superAdmin_jwt_token>'
+  }
+});
+
+const data = await response.json();
+console.log(data);
+```
+
 ## Notes
 - Client accounts start with 'pending' status until assigned to a company
 - Only super admins can assign clients to companies
+- Only super admins can activate clients using the `/activate` endpoint
 - Company admins can only manage clients within their assigned company
 - Client passwords are automatically hashed before storage
 - All timestamps are in ISO 8601 format
 - Pagination is handled using the `mongoose-paginate-v2` plugin
+- The activate endpoint works independently of company assignment and can activate any client by ID

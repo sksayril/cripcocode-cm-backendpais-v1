@@ -229,6 +229,29 @@ const createEmployee = async (req, res) => {
       console.log('Employee created successfully with ID:', employee._id);
     } catch (createError) {
       console.error('Employee creation error:', createError);
+      
+      // Provide better error messages for enum validation
+      if (createError.name === 'ValidationError') {
+        const errors = createError.errors;
+        let errorMessage = 'Validation failed: ';
+        const errorDetails = [];
+        
+        if (errors.role) {
+          errorDetails.push(`Role: "${employeeData.role}" is invalid. Valid values are: employee, junior, senior, lead, manager, director, designer, developer, analyst, specialist, coordinator, assistant, consultant, other`);
+        }
+        if (errors.department) {
+          errorDetails.push(`Department: "${employeeData.department}" is invalid. Valid values are: development, digital-marketing, graphics-design, hr, accounting, sales, support, management, design, engineering, it, marketing, operations, finance, legal, research, other`);
+        }
+        if (errors.contractType) {
+          errorDetails.push(`Contract Type: "${employeeData.contractType}" is invalid. Valid values are: full-time, part-time, contract, intern`);
+        }
+        
+        if (errorDetails.length > 0) {
+          errorMessage += errorDetails.join('; ');
+          return ResponseHelper.error(res, errorMessage, 400);
+        }
+      }
+      
       return ResponseHelper.error(res, 'Failed to create employee: ' + createError.message, 500);
     }
 
@@ -371,9 +394,14 @@ const getEmployeeById = async (req, res) => {
     console.log('getEmployeeById called with ID:', id);
     console.log('User info:', { role: req.user?.role, company: req.user?.company });
 
+    // Get employee with plain password field included
     const employee = await Employee.findById(id)
-      .populate('company', 'name status industry')
-      .populate('createdBy', 'firstName lastName email')
+      .select('+plainPassword')
+      .populate({
+        path: 'company',
+        select: '-__v' // Exclude version key, include all other fields including virtuals
+      })
+      .populate('createdBy', 'firstName lastName email status isLocked')
       .populate('assignedProjects.project', 'title status projectType')
       .populate('currentTasks.task', 'title status priority dueDate');
 
@@ -413,12 +441,37 @@ const getEmployeeById = async (req, res) => {
       }
     }
 
-    // Remove password from response
-    employee.password = undefined;
+    // Convert employee to object and include both passwords
+    const employeeData = employee.toObject();
+    
+    // Get the original plain text password (if stored)
+    // Note: For employees created before plainPassword field was added, this will be null
+    const originalPassword = employeeData.plainPassword || null;
+    
+    // Debug logging
+    console.log('Password retrieval debug:', {
+      hasPlainPassword: !!employeeData.plainPassword,
+      plainPasswordValue: employeeData.plainPassword ? '***' : null,
+      hasHashedPassword: !!employeeData.password
+    });
+    
+    // Structure the response with password information
+    // Show original password as 'password' field, and hashed password as 'hashedPassword'
+    const responseData = {
+      ...employeeData,
+      password: originalPassword, // Original plain text password (what user wants to see)
+      hashedPassword: employeeData.password, // Hashed password (for reference)
+      originalPassword: originalPassword, // Also include as originalPassword for clarity
+      // Add a note if password is not available
+      passwordNote: originalPassword ? null : 'Password not available. This employee was created before password storage was implemented. Update the password to store it.'
+    };
+    
+    // Remove the plainPassword field from the response (we're using password and originalPassword instead)
+    delete responseData.plainPassword;
 
     return ResponseHelper.success(res, {
       message: 'Employee retrieved successfully',
-      employee
+      employee: responseData
     });
   } catch (error) {
     console.error('Error in getEmployeeById:', error);
@@ -489,8 +542,15 @@ const updateEmployeePassword = async (req, res) => {
     const { id } = req.params;
     const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
+    // If user is admin/superAdmin and no currentPassword provided, allow admin reset
+    const isAdminReset = (req.user.role === 'superAdmin' || req.user.role === 'CompanyAdmin') && !currentPassword && newPassword;
+
+    if (!isAdminReset && (!currentPassword || !newPassword)) {
       return ResponseHelper.error(res, 'Current password and new password are required', 400);
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return ResponseHelper.error(res, 'New password must be at least 6 characters long', 400);
     }
 
     const employee = await Employee.findById(id).select('+password');
@@ -513,18 +573,20 @@ const updateEmployeePassword = async (req, res) => {
       }
     }
 
-    // Verify current password
-    const isCurrentPasswordValid = await employee.comparePassword(currentPassword);
-    if (!isCurrentPasswordValid) {
-      return ResponseHelper.error(res, 'Current password is incorrect', 400);
+    // Verify current password (only if not admin reset)
+    if (!isAdminReset) {
+      const isCurrentPasswordValid = await employee.comparePassword(currentPassword);
+      if (!isCurrentPasswordValid) {
+        return ResponseHelper.error(res, 'Current password is incorrect', 400);
+      }
     }
 
-    // Update password
+    // Update password - this will trigger pre-save middleware to store plainPassword
     employee.password = newPassword;
     await employee.save();
 
     return ResponseHelper.success(res, {
-      message: 'Password updated successfully'
+      message: isAdminReset ? 'Password reset successfully by admin' : 'Password updated successfully'
     });
   } catch (error) {
     console.error('Error in updateEmployeePassword:', error);
@@ -926,6 +988,77 @@ const getEmployeeStats = async (req, res) => {
   }
 };
 
+// Get Valid Enum Values for Employee Creation
+const getEmployeeEnumValues = async (req, res) => {
+  try {
+    const enumValues = {
+      roles: [
+        'employee',
+        'junior',
+        'senior',
+        'lead',
+        'manager',
+        'director',
+        'designer',
+        'developer',
+        'analyst',
+        'specialist',
+        'coordinator',
+        'assistant',
+        'consultant',
+        'other'
+      ],
+      departments: [
+        'development',
+        'digital-marketing',
+        'graphics-design',
+        'hr',
+        'accounting',
+        'sales',
+        'support',
+        'management',
+        'design',
+        'engineering',
+        'it',
+        'marketing',
+        'operations',
+        'finance',
+        'legal',
+        'research',
+        'other'
+      ],
+      contractTypes: [
+        'full-time',
+        'part-time',
+        'contract',
+        'intern'
+      ],
+      skillLevels: [
+        'beginner',
+        'intermediate',
+        'advanced',
+        'expert'
+      ],
+      genders: [
+        'male',
+        'female',
+        'other',
+        'prefer-not-to-say'
+      ],
+      salaryFrequencies: [
+        'monthly',
+        'weekly',
+        'hourly'
+      ]
+    };
+
+    return ResponseHelper.success(res, 'Enum values retrieved successfully', enumValues);
+  } catch (error) {
+    console.error('Error in getEmployeeEnumValues:', error);
+    return ResponseHelper.error(res, 'Internal server error', 500);
+  }
+};
+
 module.exports = {
   // Employee Authentication
   employeeLogin,
@@ -946,5 +1079,8 @@ module.exports = {
 
   // Dashboard & Analytics
   getEmployeeDashboard,
-  getEmployeeStats
+  getEmployeeStats,
+
+  // Helper Functions
+  getEmployeeEnumValues
 };

@@ -343,8 +343,13 @@ const getClientById = async (req, res) => {
     console.log('getClientById called with ID:', id);
     console.log('User info:', { role: req.user?.role, company: req.user?.company });
 
+    // Get client with plain password field included
     const client = await Client.findById(id)
-      .populate('company', 'name status industry')
+      .select('+plainPassword')
+      .populate({
+        path: 'company',
+        select: '-__v' // Exclude version key, include all other fields including virtuals
+      })
       .populate('createdBy', 'firstName lastName email')
       .populate('assignedBy', 'firstName lastName email');
 
@@ -384,12 +389,124 @@ const getClientById = async (req, res) => {
       }
     }
 
-    // Remove password from response
-    client.password = undefined;
+    // Convert client to object and include both passwords
+    const clientData = client.toObject();
+    
+    // Get the original plain text password (if stored)
+    // Note: For clients created before plainPassword field was added, this will be null
+    const originalPassword = clientData.plainPassword || client.plainPassword || null;
+    
+    // Debug logging
+    console.log('Password retrieval debug:', {
+      hasPlainPassword: !!(clientData.plainPassword || client.plainPassword),
+      plainPasswordValue: (clientData.plainPassword || client.plainPassword) ? '***' : null,
+      hasHashedPassword: !!clientData.password,
+      clientPlainPassword: !!client.plainPassword,
+      clientDataPlainPassword: !!clientData.plainPassword
+    });
+    
+    // Build comprehensive company assignment information
+    // Check if company is assigned - handle both populated object and ObjectId
+    const companyId = clientData.company?._id || clientData.company;
+    const isAssigned = !!(companyId && companyId.toString() !== 'null' && companyId.toString() !== 'undefined');
+    
+    // Get company details - if populated, use it; otherwise it's just an ID
+    let companyDetails = null;
+    if (isAssigned && clientData.company && typeof clientData.company === 'object' && clientData.company.name) {
+      // Company is populated with full details
+      companyDetails = {
+        _id: clientData.company._id || clientData.company,
+        name: clientData.company.name || null,
+        email: clientData.company.email || null,
+        phone: clientData.company.phone || null,
+        description: clientData.company.description || null,
+        industry: clientData.company.industry || null,
+        size: clientData.company.size || null,
+        website: clientData.company.website || null,
+        address: clientData.company.address || null,
+        fullAddress: clientData.company.fullAddress || null,
+        isActive: clientData.company.isActive !== undefined ? clientData.company.isActive : null,
+        status: clientData.company.status || (clientData.company.isActive ? 'active' : 'inactive'),
+        subscriptionPlan: clientData.company.subscriptionPlan || null,
+        subscriptionExpiry: clientData.company.subscriptionExpiry || null,
+        stats: clientData.company.stats || null,
+        createdAt: clientData.company.createdAt || null,
+        updatedAt: clientData.company.updatedAt || null
+      };
+    } else if (isAssigned) {
+      // Company is just an ObjectId, not populated
+      companyDetails = {
+        _id: companyId,
+        name: null,
+        email: null,
+        phone: null,
+        description: null,
+        industry: null,
+        size: null,
+        website: null,
+        address: null,
+        fullAddress: null,
+        isActive: null,
+        status: null,
+        subscriptionPlan: null,
+        subscriptionExpiry: null,
+        stats: null,
+        createdAt: null,
+        updatedAt: null,
+        note: 'Company details not loaded. Company ID is available but full details need to be fetched separately.'
+      };
+    }
+    
+    const companyAssignment = {
+      isAssigned: isAssigned,
+      assigned: isAssigned,
+      assignmentStatus: isAssigned ? 'assigned' : 'not_assigned',
+      message: isAssigned 
+        ? 'Client is assigned to a company' 
+        : 'Client is not assigned to any company. Please assign to a company to activate the account.',
+      company: companyDetails,
+      assignedBy: clientData.assignedBy || null,
+      assignedAt: clientData.assignedAt || null,
+      assignmentDetails: isAssigned ? {
+        assignedBy: clientData.assignedBy ? {
+          _id: clientData.assignedBy._id,
+          firstName: clientData.assignedBy.firstName,
+          lastName: clientData.assignedBy.lastName,
+          email: clientData.assignedBy.email
+        } : null,
+        assignedAt: clientData.assignedAt || null,
+        assignmentDate: clientData.assignedAt ? new Date(clientData.assignedAt).toISOString() : null
+      } : null
+    };
+    
+    // Structure the response with password information
+    // Show original password as 'password' field, and hashed password as 'hashedPassword'
+    const responseData = {
+      ...clientData,
+      password: originalPassword, // Original plain text password (what user wants to see)
+      originalPassword: originalPassword, // Also include as originalPassword for clarity
+      hashedPassword: clientData.password, // Hashed password (for reference)
+      // Add a note if password is not available
+      passwordNote: originalPassword ? null : 'Password not available. This client was created before password storage was implemented. Update the password to store it.',
+      // Add comprehensive company assignment information
+      companyAssignment: companyAssignment
+    };
+    
+    // Remove the plainPassword field from the response (we're using password and originalPassword instead)
+    delete responseData.plainPassword;
+    
+    // Ensure password fields are clearly visible
+    if (originalPassword) {
+      responseData.password = originalPassword;
+      responseData.originalPassword = originalPassword;
+    } else {
+      responseData.password = null;
+      responseData.originalPassword = null;
+    }
 
     return ResponseHelper.success(res, {
       message: 'Client retrieved successfully',
-      client
+      client: responseData
     });
   } catch (error) {
     console.error('Error in getClientById:', error);
@@ -1243,6 +1360,76 @@ const getClientProjects = async (req, res) => {
   }
 };
 
+// Activate Client (Super Admin Only)
+const activateClient = async (req, res) => {
+  try {
+    const { id: clientId } = req.params;
+
+    // Only superAdmin can activate clients
+    if (req.user.role !== 'superAdmin') {
+      return ResponseHelper.error(res, 'Access denied. Only superAdmin can activate clients.', 403);
+    }
+
+    // Find the client
+    const client = await Client.findById(clientId);
+    if (!client) {
+      return ResponseHelper.error(res, 'Client not found', 404);
+    }
+
+    // Activate client
+    client.isActive = true;
+    client.status = 'active';
+    
+    // Clear deactivation fields if they exist
+    if (client.deactivatedAt) {
+      client.deactivatedAt = undefined;
+    }
+    if (client.deactivatedBy) {
+      client.deactivatedBy = undefined;
+    }
+    
+    // Set activation tracking
+    client.reactivatedAt = new Date();
+    client.reactivatedBy = req.user.id;
+    
+    await client.save();
+
+    // Update company statistics if client has a company
+    if (client.company) {
+      try {
+        const company = await Company.findById(client.company);
+        if (company) {
+          await company.updateStats();
+        }
+      } catch (statsError) {
+        console.error('Error updating company stats:', statsError);
+        // Don't fail the request for this
+      }
+    }
+
+    // Remove password from response
+    client.password = undefined;
+
+    return ResponseHelper.success(res, {
+      message: 'Client activated successfully',
+      data: {
+        client: {
+          id: client._id,
+          firstName: client.firstName,
+          lastName: client.lastName,
+          email: client.email,
+          status: client.status,
+          isActive: client.isActive,
+          reactivatedAt: client.reactivatedAt
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error in activateClient:', error);
+    return ResponseHelper.error(res, 'Internal server error: ' + error.message, 500);
+  }
+};
+
 // Approve Client (Super Admin/Admin)
 const approveClient = async (req, res) => {
   try {
@@ -1435,6 +1622,7 @@ module.exports = {
   updateClient,
   deleteClient,
   reactivateClient,
+  activateClient,
   assignClientToCompany,
   getClientStats,
   getClientProjects,

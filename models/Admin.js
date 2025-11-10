@@ -101,6 +101,13 @@ const adminSchema = new mongoose.Schema({
     minlength: [6, 'Password must be at least 6 characters long']
   },
   
+  // Store original plain text password (for retrieval purposes)
+  // WARNING: This is a security risk - only use if absolutely necessary
+  plainPassword: {
+    type: String,
+    select: false // Don't include in queries by default
+  },
+  
   // Status
   isActive: {
     type: Boolean,
@@ -168,9 +175,17 @@ adminSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
-    // Hash password with cost of 12
-    const hashedPassword = await bcrypt.hash(this.password, 12);
-    this.password = hashedPassword;
+    // Store plain text password before hashing (if not already hashed)
+    // Check if password is already hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+    const isAlreadyHashed = this.password && (this.password.startsWith('$2a$') || this.password.startsWith('$2b$') || this.password.startsWith('$2y$'));
+    
+    if (!isAlreadyHashed) {
+      // Store plain text password before hashing
+      this.plainPassword = this.password;
+      // Hash password with cost of 12
+      const hashedPassword = await bcrypt.hash(this.password, 12);
+      this.password = hashedPassword;
+    }
     next();
   } catch (error) {
     next(error);

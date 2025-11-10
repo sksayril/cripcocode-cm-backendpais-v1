@@ -21,7 +21,10 @@ const {
 
   // Dashboard & Analytics
   getEmployeeDashboard,
-  getEmployeeStats
+  getEmployeeStats,
+
+  // Helper Functions
+  getEmployeeEnumValues
 } = require('../controllers/employeeController');
 
 const router = express.Router();
@@ -29,6 +32,9 @@ const router = express.Router();
 // Employee Authentication Routes (Public)
 router.post('/login', employeeLogin);
 router.post('/logout', employeeLogout);
+
+// Helper Route - Get Valid Enum Values (Public - no auth required for enum values)
+router.get('/enums', getEmployeeEnumValues);
 
 // Employee Management Routes (Admin/Super Admin)
 // Apply authentication middleware to all management routes

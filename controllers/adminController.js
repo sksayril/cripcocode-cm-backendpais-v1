@@ -257,10 +257,22 @@ const getAdminById = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Validate ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid admin ID format'
+      });
+    }
+
+    // Get admin with plain password field included and populate all company details
     const admin = await Admin.findById(id)
-      .select('-password')
-      .populate('company', 'name email industry size')
-      .populate('createdBy', 'username email');
+      .select('+plainPassword')
+      .populate({
+        path: 'company',
+        select: '-__v' // Exclude version key, include all other fields
+      })
+      .populate('createdBy', 'username email fullname');
 
     if (!admin) {
       return res.status(404).json({
@@ -270,17 +282,68 @@ const getAdminById = async (req, res) => {
     }
 
     // Check if user has access to this admin
-    if (req.user.role === 'CompanyAdmin' && admin.company.toString() !== req.user.company.toString()) {
+    if (req.user.role === 'CompanyAdmin' && admin.company && admin.company._id.toString() !== req.user.company.toString()) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only view admins in your company.'
       });
     }
 
+    // Convert admin to object
+    const adminData = admin.toObject();
+    
+    // Structure the response with all admin details and complete company information
+    const responseData = {
+      id: adminData._id,
+      fullname: adminData.fullname,
+      username: adminData.username,
+      email: adminData.email,
+      phone: adminData.phone,
+      role: adminData.role,
+      department: adminData.department,
+      adminArea: adminData.adminArea,
+      permissions: adminData.permissions,
+      isActive: adminData.isActive,
+      isEmailVerified: adminData.isEmailVerified,
+      isPhoneVerified: adminData.isPhoneVerified,
+      lastLogin: adminData.lastLogin,
+      loginAttempts: adminData.loginAttempts,
+      lockUntil: adminData.lockUntil,
+      status: adminData.status,
+      isLocked: adminData.isLocked,
+      createdAt: adminData.createdAt,
+      updatedAt: adminData.updatedAt,
+      password: adminData.password, // Hashed password
+      originalPassword: adminData.plainPassword || null, // Original plain text password
+      createdBy: adminData.createdBy,
+      // Include complete company details
+      company: adminData.company ? {
+        id: adminData.company._id,
+        name: adminData.company.name,
+        description: adminData.company.description,
+        email: adminData.company.email,
+        phone: adminData.company.phone,
+        address: adminData.company.address,
+        industry: adminData.company.industry,
+        size: adminData.company.size,
+        website: adminData.company.website,
+        isActive: adminData.company.isActive,
+        subscriptionPlan: adminData.company.subscriptionPlan,
+        subscriptionExpiry: adminData.company.subscriptionExpiry,
+        stats: adminData.company.stats,
+        fullAddress: adminData.company.fullAddress,
+        status: adminData.company.status,
+        createdAt: adminData.company.createdAt,
+        updatedAt: adminData.company.updatedAt
+      } : null
+    };
+    
     res.status(200).json({
       success: true,
       message: 'Admin retrieved successfully',
-      data: { admin }
+      data: { 
+        admin: responseData
+      }
     });
 
   } catch (error) {

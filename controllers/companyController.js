@@ -406,6 +406,70 @@ const getCompanyWithAdmins = async (req, res) => {
   }
 };
 
+// Get Company Admins List (Count and List of all admins for a company)
+const getCompanyAdmins = async (req, res) => {
+  try {
+    console.log('getCompanyAdmins called with id:', req.params.id);
+    const { id } = req.params;
+
+    // Check if company exists
+    const company = await Company.findById(id).select('name email _id');
+    
+    if (!company) {
+      return ResponseHelper.resourceNotFound(res, 'Company', id);
+    }
+
+    // Get all admins for this company
+    const admins = await Admin.find({ company: id })
+      .select('-password')
+      .populate('createdBy', 'username email')
+      .sort({ createdAt: -1 });
+
+    // Count admins
+    const totalAdmins = admins.length;
+    const activeAdmins = admins.filter(admin => admin.isActive).length;
+    const inactiveAdmins = admins.filter(admin => !admin.isActive).length;
+
+    res.status(200).json({
+      success: true,
+      message: 'Company admins retrieved successfully',
+      data: {
+        company: {
+          id: company._id,
+          name: company.name,
+          email: company.email
+        },
+        adminCount: {
+          total: totalAdmins,
+          active: activeAdmins,
+          inactive: inactiveAdmins
+        },
+        admins: admins.map(admin => ({
+          id: admin._id,
+          fullname: admin.fullname,
+          username: admin.username,
+          email: admin.email,
+          phone: admin.phone,
+          role: admin.role,
+          department: admin.department,
+          adminArea: admin.adminArea,
+          isActive: admin.isActive,
+          createdAt: admin.createdAt,
+          createdBy: admin.createdBy
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error('Get company admins error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   createCompany,
   getAllCompanies,
@@ -414,5 +478,6 @@ module.exports = {
   deleteCompany,
   reactivateCompany,
   getCompanyStats,
-  getCompanyWithAdmins
+  getCompanyWithAdmins,
+  getCompanyAdmins
 };

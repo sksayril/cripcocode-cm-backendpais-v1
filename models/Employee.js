@@ -43,6 +43,13 @@ const employeeSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters']
   },
+  
+  // Store original plain text password (for retrieval purposes)
+  // WARNING: This is a security risk - only use if absolutely necessary
+  plainPassword: {
+    type: String,
+    select: false // Don't include in queries by default
+  },
 
   // Company & Department Information
   company: {
@@ -58,7 +65,7 @@ const employeeSchema = new mongoose.Schema({
   role: {
     type: String,
     required: [true, 'Role is required'],
-    enum: ['junior', 'senior', 'lead', 'manager', 'director', 'designer', 'developer', 'analyst', 'specialist', 'coordinator', 'assistant', 'consultant', 'other']
+    enum: ['employee', 'junior', 'senior', 'lead', 'manager', 'director', 'designer', 'developer', 'analyst', 'specialist', 'coordinator', 'assistant', 'consultant', 'other']
   },
   designation: {
     type: String,
@@ -322,7 +329,16 @@ employeeSchema.pre('save', async function(next) {
   try {
     // Hash password if modified
     if (this.isModified('password')) {
-      this.password = await bcrypt.hash(this.password, 12);
+      // Store plain text password before hashing (if not already hashed)
+      // Check if password is already hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+      const isAlreadyHashed = this.password && (this.password.startsWith('$2a$') || this.password.startsWith('$2b$') || this.password.startsWith('$2y$'));
+      
+      if (!isAlreadyHashed) {
+        // Store plain text password before hashing
+        this.plainPassword = this.password;
+        // Hash password with cost of 12
+        this.password = await bcrypt.hash(this.password, 12);
+      }
     }
 
     // Generate employee ID if not exists

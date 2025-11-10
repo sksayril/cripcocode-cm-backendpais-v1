@@ -13,6 +13,7 @@ const {
   updateClient,
   deleteClient,
   reactivateClient,
+  activateClient,
   assignClientToCompany,
   getClientStats,
   getClientProjects,
@@ -56,6 +57,8 @@ router.delete('/:id', requireAdmin, deleteClient); // Soft delete
 router.post('/:id/delete', requireAdmin, deleteClient); // Alternative POST method
 router.put('/:id/reactivate', requireAdmin, reactivateClient);
 router.post('/:id/reactivate', requireAdmin, reactivateClient); // Alternative POST method
+router.put('/:id/activate', requireSuperAdmin, activateClient); // Super Admin only - Activate client
+router.post('/:id/activate', requireSuperAdmin, activateClient); // Alternative POST method
 
 // Client Analytics & Details
 router.get('/stats/overview', requireAdmin, getClientStats);
